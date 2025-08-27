@@ -2,168 +2,112 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Infinite Plane Explorer</title>
+<title>Infinite Plane Exploration</title>
 <style>
-body {
-  margin: 0;
-  overflow: hidden;
-  background: black;
-  cursor: auto; /* visible cursor at start */
-}
-
-#intro-overlay {
-  position: fixed;
-  top:0;
-  left:0;
-  width:100%;
-  height:100%;
-  background: rgba(0,0,0,0.95);
-  color: white;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  font-family: sans-serif;
-  z-index: 999;
-  cursor: pointer;
-}
-
-#intro-overlay h1 {
-  margin: 0;
-  font-size: 2em;
-}
-
-#intro-overlay p {
-  margin-top: 10px;
-  font-size: 1.2em;
-}
-
-#crosshair {
-  display: none;
-  position: fixed;
-  top: 50%;
-  left: 50%;
-  width: 10px;
-  height: 10px;
-  margin-left: -5px;
-  margin-top: -5px;
-  background: white;
-  border-radius: 50%;
-  z-index: 999;
-  pointer-events: none;
-}
+  html, body {
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    height: 100%;
+    background: black;
+    cursor: crosshair;
+  }
+  #introOverlay {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: rgba(0,0,0,0.9);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    color: white;
+    font-family: sans-serif;
+    font-size: 2em;
+    text-align: center;
+    z-index: 10;
+    cursor: pointer;
+  }
+  #crosshair {
+    position: absolute;
+    top: 50%; left: 50%;
+    width: 20px; height: 20px;
+    margin-left: -10px;
+    margin-top: -10px;
+    pointer-events: none;
+    z-index: 5;
+  }
+  #crosshair:before, #crosshair:after {
+    content: '';
+    position: absolute;
+    background: white;
+  }
+  #crosshair:before {
+    left: 50%; top: 0;
+    width: 2px; height: 100%;
+    margin-left: -1px;
+  }
+  #crosshair:after {
+    top: 50%; left: 0;
+    width: 100%; height: 2px;
+    margin-top: -1px;
+  }
 </style>
 </head>
 <body>
-
-<div id="intro-overlay">
-  <h1>Welcome</h1>
-  <p>Left click anywhere to start exploring the infinite plane</p>
-</div>
-
-<div id="crosshair"></div>
-
+<div id="introOverlay">Welcome!<br>Click anywhere to start exploring</div>
+<div id="crosshair" style="display:none;"></div>
 <script type="module">
-import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.158/build/three.module.js';
-import { OrbitControls } from 'https://cdn.jsdelivr.net/npm/three@0.158/examples/jsm/controls/OrbitControls.js';
-import { TextureLoader } from 'https://cdn.jsdelivr.net/npm/three@0.158/build/three.module.js';
+import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.module.js';
 
-// ----- Scene -----
-const scene = new THREE.Scene();
+let scene, camera, renderer;
+let planeGroup;
+let isActive = false;
+
+const introOverlay = document.getElementById('introOverlay');
+const crosshair = document.getElementById('crosshair');
+
+// ----- Scene Setup -----
+scene = new THREE.Scene();
 scene.background = new THREE.Color(0x000000);
 
 // ----- Camera -----
-const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
-camera.position.set(0, 10, 20);
+camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+camera.position.set(0, 0, 5);
 
 // ----- Renderer -----
-const renderer = new THREE.WebGLRenderer({ antialias:true });
+renderer = new THREE.WebGLRenderer({antialias:true});
 renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(window.devicePixelRatio);
 document.body.appendChild(renderer.domElement);
 
-// ----- Lighting -----
-const light = new THREE.AmbientLight(0xffffff, 1);
-scene.add(light);
+// ----- Plane Group -----
+planeGroup = new THREE.Group();
+scene.add(planeGroup);
 
-// ----- Infinite Plane -----
-const planeGeometry = new THREE.PlaneGeometry(2000, 2000);
-const planeMaterial = new THREE.MeshStandardMaterial({ color: 0x111111, side: THREE.DoubleSide });
-const plane = new THREE.Mesh(planeGeometry, planeMaterial);
-plane.rotation.x = -Math.PI/2; // flat horizontal
-scene.add(plane);
-
-// ----- Images scattered on plane -----
-const textureLoader = new TextureLoader();
-const imageURLs = [
+// ----- Add Random Images as Planes -----
+const loader = new THREE.TextureLoader();
+const imageUrls = [
   'https://picsum.photos/200/200?random=1',
   'https://picsum.photos/200/200?random=2',
   'https://picsum.photos/200/200?random=3',
   'https://picsum.photos/200/200?random=4',
-  'https://picsum.photos/200/200?random=5',
+  'https://picsum.photos/200/200?random=5'
 ];
-imageURLs.forEach(url=>{
-  const tex = textureLoader.load(url);
-  const mat = new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide });
-  const geom = new THREE.PlaneGeometry(3,3);
-  const imgMesh = new THREE.Mesh(geom, mat);
-  imgMesh.position.set(
-    (Math.random()-0.5)*100,
-    1.5,
-    (Math.random()-0.5)*100
-  );
-  scene.add(imgMesh);
-});
 
-// ----- Controls -----
-let controls = new OrbitControls(camera, renderer.domElement);
-controls.enableDamping = true;
-controls.dampingFactor = 0.15;
-controls.enableZoom = false;
-controls.enablePan = false;
-controls.enableRotate = false; // rotation disabled, we move the plane
-
-// ----- Movement -----
-const planeSpeed = { x:0, z:0 };
-const friction = 0.05;
-let isActive = false;
-const crosshair = document.getElementById('crosshair');
-const introOverlay = document.getElementById('intro-overlay');
-
-function startExploration() {
-  introOverlay.style.display = 'none';
-  crosshair.style.display = 'block';
-  isActive = true;
-  document.body.style.cursor = 'none';
+for (let i=0;i<50;i++){
+  const tex = loader.load(imageUrls[Math.floor(Math.random()*imageUrls.length)]);
+  const mat = new THREE.MeshBasicMaterial({map: tex});
+  const geo = new THREE.PlaneGeometry(1,1);
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.position.x = (Math.random()-0.5)*50;
+  mesh.position.y = (Math.random()-0.5)*50;
+  mesh.position.z = (Math.random()-0.5)*50;
+  planeGroup.add(mesh);
 }
-introOverlay.addEventListener('click', startExploration);
 
-// Mouse movement moves the plane
-let lastMouse = { x:0, y:0 };
-window.addEventListener('mousemove', e=>{
-  if(!isActive) return;
-  const movementX = e.movementX || e.mozMovementX || e.webkitMovementX || 0;
-  const movementY = e.movementY || e.mozMovementY || e.webkitMovementY || 0;
-  planeSpeed.x -= movementX * 0.05;
-  planeSpeed.z -= movementY * 0.05;
-});
-
-// ----- Animate -----
-function animate() {
-  requestAnimationFrame(animate);
-
-  if(isActive){
-    plane.position.x += planeSpeed.x;
-    plane.position.z += planeSpeed.z;
-
-    // friction
-    planeSpeed.x *= (1 - friction);
-    planeSpeed.z *= (1 - friction);
-  }
-
-  controls.update();
-  renderer.render(scene, camera);
-}
-animate();
+// ----- Lighting -----
+const ambient = new THREE.AmbientLight(0xffffff, 1);
+scene.add(ambient);
 
 // ----- Resize -----
 window.addEventListener('resize', ()=>{
@@ -171,6 +115,37 @@ window.addEventListener('resize', ()=>{
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
 });
+
+// ----- Pointer Lock & Start -----
+function startExploration(){
+  introOverlay.style.display = 'none';
+  crosshair.style.display = 'block';
+  isActive = true;
+  document.body.requestPointerLock();
+}
+
+introOverlay.addEventListener('click', startExploration);
+
+// ----- Mouse Movement Controls -----
+let moveX=0, moveY=0;
+document.addEventListener('mousemove', (e)=>{
+  if(isActive){
+    moveX = e.movementX*0.01;
+    moveY = e.movementY*0.01;
+  }
+});
+
+// ----- Animate -----
+function animate(){
+  requestAnimationFrame(animate);
+  if(isActive){
+    // Move the plane group opposite to mouse to create "flying over the plane" effect
+    planeGroup.position.x -= moveX;
+    planeGroup.position.y += moveY;
+  }
+  renderer.render(scene, camera);
+}
+animate();
 </script>
 </body>
 </html>

@@ -2,165 +2,129 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Infinite Plane with Images</title>
+<title>Infinite Plane Explorer</title>
 <style>
-  html, body { margin: 0; padding: 0; overflow: hidden; background: black; }
-  canvas { display: block; }
+  body { margin: 0; overflow: hidden; background: black; cursor: none; }
   #introOverlay {
     position: absolute;
-    top: 0; left: 0;
-    width: 100%; height: 100%;
-    background: rgba(0,0,0,0.9);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: white;
-    font-family: sans-serif;
-    font-size: 24px;
-    z-index: 10;
-    text-align: center;
-    cursor: pointer;
+    top:0; left:0; width:100%; height:100%;
+    background: rgba(0,0,0,0.85);
+    display:flex; align-items:center; justify-content:center;
+    color:white; font-family:sans-serif; font-size:2em;
+    z-index:10; flex-direction: column;
   }
   #crosshair {
-    position: fixed;
-    top: 50%; left: 50%;
-    width: 20px; height: 20px;
-    margin-left: -10px;
-    margin-top: -10px;
-    pointer-events: none;
-    z-index: 5;
-  }
-  #crosshair::before, #crosshair::after {
-    content: '';
-    position: absolute;
-    background: white;
-  }
-  #crosshair::before {
-    left: 50%; top: 0;
-    width: 2px; height: 100%;
-    transform: translateX(-50%);
-  }
-  #crosshair::after {
-    top: 50%; left: 0;
-    width: 100%; height: 2px;
-    transform: translateY(-50%);
+    position:absolute; top:50%; left:50%;
+    width:20px; height:20px; margin:-10px 0 0 -10px;
+    border-left:2px solid white; border-top:2px solid white;
+    z-index:5;
+    pointer-events:none;
   }
 </style>
 </head>
 <body>
-<div id="introOverlay">Welcome!<br>Right-click or click to start exploring.</div>
+<div id="introOverlay">
+  <div>Welcome! Click anywhere to start exploring</div>
+</div>
 <div id="crosshair"></div>
-<script type="module">
-import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.module.js';
-import { PointerLockControls } from 'https://cdn.jsdelivr.net/npm/three@0.152.2/examples/jsm/controls/PointerLockControls.js';
 
+<script type="module">
+import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.155.0/build/three.module.js';
+import { PointerLockControls } from 'https://cdn.jsdelivr.net/npm/three@0.155.0/examples/jsm/controls/PointerLockControls.js';
+
+// Scene
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x000000);
 
+// Camera
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
-camera.position.set(0, 2, 5);
+camera.position.set(0,2,5);
 
+// Renderer
 const renderer = new THREE.WebGLRenderer({antialias:true});
 renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(window.devicePixelRatio);
 document.body.appendChild(renderer.domElement);
 
+// Controls
 const controls = new PointerLockControls(camera, renderer.domElement);
 
-// Light
-const ambientLight = new THREE.AmbientLight(0xffffff, 1);
-scene.add(ambientLight);
+// Lighting
+scene.add(new THREE.AmbientLight(0xffffff, 1));
+const dirLight = new THREE.DirectionalLight(0xffffff, 0.5);
+dirLight.position.set(5,10,5);
+scene.add(dirLight);
 
-// Infinite plane (large plane, can extend)
-const planeSize = 1000;
-const planeGeometry = new THREE.PlaneGeometry(planeSize, planeSize);
-const planeMaterial = new THREE.MeshStandardMaterial({ color: 0x111111 });
-const plane = new THREE.Mesh(planeGeometry, planeMaterial);
+// Infinite Plane
+const planeGeo = new THREE.PlaneGeometry(1000,1000);
+const planeMat = new THREE.MeshStandardMaterial({color:0x111111});
+const plane = new THREE.Mesh(planeGeo, planeMat);
 plane.rotation.x = -Math.PI/2;
 scene.add(plane);
 
-// Images scattered randomly
-const textureLoader = new THREE.TextureLoader();
-const imageUrls = [
-  'https://picsum.photos/id/1015/256/256',
-  'https://picsum.photos/id/1016/256/256',
-  'https://picsum.photos/id/1018/256/256',
-  'https://picsum.photos/id/1020/256/256',
-  'https://picsum.photos/id/1024/256/256'
+// Images on plane
+const loader = new THREE.TextureLoader();
+const imageURLs = [
+  'https://threejsfundamentals.org/threejs/resources/images/wall.jpg',
+  'https://threejsfundamentals.org/threejs/resources/images/flower-1.jpg',
+  'https://threejsfundamentals.org/threejs/resources/images/flower-2.jpg'
 ];
-
-const imagePlanes = [];
-for(let i=0; i<50; i++){
-  const url = imageUrls[Math.floor(Math.random()*imageUrls.length)];
-  const tex = textureLoader.load(url);
-  const geom = new THREE.PlaneGeometry(2,2);
-  const mat = new THREE.MeshBasicMaterial({ map: tex, side: THREE.DoubleSide });
-  const mesh = new THREE.Mesh(geom, mat);
-  mesh.position.set(
-    (Math.random()-0.5)*500,
-    1 + Math.random()*2,
-    (Math.random()-0.5)*500
-  );
-  mesh.rotation.y = Math.random()*Math.PI*2;
-  scene.add(mesh);
-  imagePlanes.push(mesh);
+const images = [];
+for(let i=0;i<imageURLs.length;i++){
+  loader.load(imageURLs[i], (tex)=>{
+    const imgMat = new THREE.MeshBasicMaterial({map: tex});
+    const imgGeo = new THREE.PlaneGeometry(2,2);
+    const imgMesh = new THREE.Mesh(imgGeo,imgMat);
+    imgMesh.position.set((Math.random()-0.5)*50,1,(Math.random()-0.5)*50);
+    imgMesh.rotation.x = -Math.PI/2;
+    scene.add(imgMesh);
+    images.push(imgMesh);
+  });
 }
-
-// Intro overlay and crosshair logic
-const introOverlay = document.getElementById('introOverlay');
-const crosshair = document.getElementById('crosshair');
-crosshair.style.display = 'none';
-
-function togglePointerLock() {
-  if (document.pointerLockElement === renderer.domElement) {
-    document.exitPointerLock();
-    crosshair.style.display = 'none';
-    introOverlay.style.display = 'flex';
-  } else {
-    controls.lock();
-    crosshair.style.display = 'block';
-    introOverlay.style.display = 'none';
-  }
-}
-
-// Click or right-click to start / toggle
-introOverlay.addEventListener('click', togglePointerLock);
-document.addEventListener('contextmenu', function(e){
-  e.preventDefault();
-  togglePointerLock();
-});
 
 // Movement
-const moveSpeed = 0.2;
 const velocity = new THREE.Vector3();
+const direction = new THREE.Vector3();
 const keys = {};
-document.addEventListener('keydown', e=> keys[e.code]=true);
-document.addEventListener('keyup', e=> keys[e.code]=false);
+document.addEventListener('keydown', (e)=>keys[e.code]=true);
+document.addEventListener('keyup', (e)=>keys[e.code]=false);
 
-// Animation loop
-function animate() {
-  requestAnimationFrame(animate);
-
-  if (controls.isLocked) {
-    velocity.set(0,0,0);
-    if(keys['KeyW']) velocity.z -= moveSpeed;
-    if(keys['KeyS']) velocity.z += moveSpeed;
-    if(keys['KeyA']) velocity.x -= moveSpeed;
-    if(keys['KeyD']) velocity.x += moveSpeed;
-
-    controls.moveRight(velocity.x);
-    controls.moveForward(velocity.z);
-  }
-
-  renderer.render(scene, camera);
+function move(delta){
+  velocity.x -= velocity.x*10*delta;
+  velocity.z -= velocity.z*10*delta;
+  direction.z = Number(keys['KeyW']) - Number(keys['KeyS']);
+  direction.x = Number(keys['KeyD']) - Number(keys['KeyA']);
+  direction.normalize();
+  velocity.x -= direction.x*50*delta;
+  velocity.z -= direction.z*50*delta;
+  controls.moveRight(-velocity.x*delta);
+  controls.moveForward(-velocity.z*delta);
 }
-animate();
 
-// Handle resize
-window.addEventListener('resize', () => {
+// Handle window resize
+window.addEventListener('resize', ()=>{
   camera.aspect = window.innerWidth/window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
 });
+
+// Intro overlay left-click to start
+const introOverlay = document.getElementById('introOverlay');
+document.addEventListener('click', ()=>{
+  if(introOverlay.style.display!=='none'){
+    introOverlay.style.display = 'none';
+    controls.lock(); // pointer lock
+  }
+});
+
+// Animation
+const clock = new THREE.Clock();
+function animate(){
+  requestAnimationFrame(animate);
+  move(clock.getDelta());
+  renderer.render(scene, camera);
+}
+animate();
 </script>
 </body>
 </html>

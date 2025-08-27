@@ -8,13 +8,38 @@
         margin: 0;
         overflow: hidden;
         background: white;
+        font-family: sans-serif;
       }
       canvas {
         display: block;
       }
+      #overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(255, 255, 255, 0.95);
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        font-size: 2rem;
+        z-index: 10;
+      }
+      #startBtn {
+        margin-top: 20px;
+        padding: 10px 20px;
+        font-size: 1.2rem;
+        cursor: pointer;
+        border: 2px solid black;
+        background: none;
+      }
     </style>
   </head>
   <body>
+    <div id="overlay">
+      <div>Welcome to the Infinite Plane</div>
+      <button id="startBtn">Start</button>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/three@0.150.1/build/three.min.js"></script>
 
     <script>
@@ -45,7 +70,7 @@
         const ctx = gridCanvas.getContext("2d");
         ctx.fillStyle = "white";
         ctx.fillRect(0, 0, 256, 256);
-        ctx.strokeStyle = "rgba(0,0,255,0.2)";
+        ctx.strokeStyle = "rgba(0,0,255,0.3)";
         ctx.lineWidth = 1;
         for (let i = 0; i <= 256; i += 32) {
           ctx.beginPath();
@@ -60,7 +85,9 @@
         const gridTexture = new THREE.CanvasTexture(gridCanvas);
         gridTexture.wrapS = THREE.RepeatWrapping;
         gridTexture.wrapT = THREE.RepeatWrapping;
-        gridTexture.repeat.set(100, 100);
+        gridTexture.repeat.set(1000, 1000); // finer grid
+        gridTexture.magFilter = THREE.NearestFilter;
+        gridTexture.minFilter = THREE.NearestFilter;
 
         // Plane
         const planeGeo = new THREE.PlaneGeometry(2000, 2000);
@@ -76,7 +103,7 @@
           "https://threejs.org/examples/textures/brick_diffuse.jpg",
         ];
 
-        imageUrls.forEach((url, i) => {
+        imageUrls.forEach((url) => {
           loader.load(url, (texture) => {
             const imgMat = new THREE.MeshBasicMaterial({ map: texture });
             const imgPlane = new THREE.Mesh(new THREE.PlaneGeometry(5, 5), imgMat);
@@ -92,13 +119,14 @@
           targetVelocity.y = event.movementY * 0.05;
         });
 
-        // Right click toggle pointer lock
-        document.addEventListener("contextmenu", (event) => {
-          event.preventDefault();
-          if (!isLocked) {
-            renderer.domElement.requestPointerLock();
-          } else {
-            document.exitPointerLock();
+        // Right click toggle pointer lock (mousedown works better than contextmenu)
+        document.addEventListener("mousedown", (event) => {
+          if (event.button === 2) { // right button
+            if (!isLocked) {
+              renderer.domElement.requestPointerLock();
+            } else {
+              document.exitPointerLock();
+            }
           }
         });
 
@@ -111,6 +139,12 @@
           camera.aspect = window.innerWidth / window.innerHeight;
           camera.updateProjectionMatrix();
           renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // Overlay start
+        const overlay = document.getElementById("overlay");
+        document.getElementById("startBtn").addEventListener("click", () => {
+          overlay.style.display = "none";
         });
       }
 

@@ -1,206 +1,130 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <title>Infinite Poster — Vertical Plane</title>
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <style>
-    html,body{height:100%;margin:0;background:#fff;overflow:hidden}
-    canvas{display:block}
-    /* crosshair & hint (same UX you had) */
-    .crosshair{
-      position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);
-      width:24px;height:24px;pointer-events:none;opacity:0.7;z-index:10;
-    }
-    .crosshair::before,.crosshair::after{content:"";position:absolute;background:#111}
-    .crosshair::before{left:50%;top:0;width:2px;height:100%;transform:translateX(-50%)}
-    .crosshair::after{top:50%;left:0;height:2px;width:100%;transform:translateY(-50%)}
-    .hint{
-      position:fixed;inset:0;display:grid;place-items:center;background:rgba(255,255,255,0.9);z-index:11;
-      font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
-    }
-    .hint.hidden{display:none}
-    .hint button{margin-top:12px;padding:10px 14px;border-radius:8px;border:0;background:#111;color:#fff;cursor:pointer}
-    body.locked{cursor:none}
-  </style>
-</head>
-<body>
-  <div id="hint" class="hint">
-    <div style="text-align:center;max-width:560px;padding:18px">
-      <h2 style="margin:0 0 8px">Welcome</h2>
-      <div>Click <strong>Enter</strong> to lock the cursor and pan the gallery. Right-click toggles lock. Scroll to zoom.</div>
-      <button id="enterBtn">Enter</button>
-    </div>
-  </div>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Infinite Plane Gallery</title>
+    <style>
+      body {
+        margin: 0;
+        overflow: hidden;
+        background: white;
+      }
+      canvas {
+        display: block;
+      }
+    </style>
+  </head>
+  <body>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.150.1/build/three.min.js"></script>
 
-  <div class="crosshair" aria-hidden="true"></div>
+    <script>
+      let scene, camera, renderer, plane;
+      let velocity = new THREE.Vector3();
+      let targetVelocity = new THREE.Vector3();
+      let isLocked = false;
 
-  <!-- Three.js -->
-  <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+      init();
+      animate();
 
-  <script>
-  // ---------- Scene / Camera / Renderer (kept same as your working file) ----------
-  const scene = new THREE.Scene();
-  // white background like paper
-  scene.background = new THREE.Color(0xffffff);
+      function init() {
+        scene = new THREE.Scene();
 
-  const camera = new THREE.PerspectiveCamera(55, innerWidth/innerHeight, 0.1, 100000);
-  // place camera facing the plane (along +Z looking toward 0)
-  camera.position.set(0, 0, 1500);
-  camera.lookAt(0, 0, 0);
+        // Camera
+        camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 2000);
+        camera.position.z = 5;
 
-  const renderer = new THREE.WebGLRenderer({ antialias: true });
-  renderer.setSize(innerWidth, innerHeight);
-  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-  document.body.appendChild(renderer.domElement);
+        // Renderer
+        renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
 
-  // ---------- World group (we move the world, not the camera) ----------
-  const world = new THREE.Group();
-  scene.add(world);
+        // Background grid texture
+        const gridCanvas = document.createElement("canvas");
+        gridCanvas.width = 256;
+        gridCanvas.height = 256;
+        const ctx = gridCanvas.getContext("2d");
+        ctx.fillStyle = "white";
+        ctx.fillRect(0, 0, 256, 256);
+        ctx.strokeStyle = "rgba(0,0,255,0.2)";
+        ctx.lineWidth = 1;
+        for (let i = 0; i <= 256; i += 32) {
+          ctx.beginPath();
+          ctx.moveTo(i, 0);
+          ctx.lineTo(i, 256);
+          ctx.stroke();
+          ctx.beginPath();
+          ctx.moveTo(0, i);
+          ctx.lineTo(256, i);
+          ctx.stroke();
+        }
+        const gridTexture = new THREE.CanvasTexture(gridCanvas);
+        gridTexture.wrapS = THREE.RepeatWrapping;
+        gridTexture.wrapT = THREE.RepeatWrapping;
+        gridTexture.repeat.set(100, 100);
 
-  // ---------- Big vertical plane (FLIPPED from horizontal to vertical) ----------
-  const PLANE_SIZE = 200000;
-  const loader = new THREE.TextureLoader();
-  const gridTex = loader.load("https://threejs.org/examples/textures/uv_grid_opengl.jpg"); // blue-ish grid texture
-  gridTex.wrapS = gridTex.wrapT = THREE.RepeatWrapping;
-  gridTex.repeat.set(800, 800);
-  gridTex.anisotropy = 8;
+        // Plane
+        const planeGeo = new THREE.PlaneGeometry(2000, 2000);
+        const planeMat = new THREE.MeshBasicMaterial({ map: gridTexture, side: THREE.DoubleSide });
+        plane = new THREE.Mesh(planeGeo, planeMat);
+        scene.add(plane);
 
-  const planeGeo = new THREE.PlaneGeometry(PLANE_SIZE, PLANE_SIZE);
-  const planeMat = new THREE.MeshBasicMaterial({ map: gridTex, side: THREE.DoubleSide });
-  const plane = new THREE.Mesh(planeGeo, planeMat);
+        // Example image planes
+        const loader = new THREE.TextureLoader();
+        const imageUrls = [
+          "https://threejs.org/examples/textures/uv_grid_opengl.jpg",
+          "https://threejs.org/examples/textures/flower.jpg",
+          "https://threejs.org/examples/textures/brick_diffuse.jpg",
+        ];
 
-  // make it VERTICAL facing the camera (rotation = 0)
-  plane.rotation.x = 0;
-  plane.rotation.y = 0;
-  plane.rotation.z = 0;
-  plane.position.set(0, 0, 0); // plane sits at z = 0
-  world.add(plane);
+        imageUrls.forEach((url, i) => {
+          loader.load(url, (texture) => {
+            const imgMat = new THREE.MeshBasicMaterial({ map: texture });
+            const imgPlane = new THREE.Mesh(new THREE.PlaneGeometry(5, 5), imgMat);
+            imgPlane.position.set((Math.random() - 0.5) * 500, (Math.random() - 0.5) * 500, 0.1);
+            scene.add(imgPlane);
+          });
+        });
 
-  // ---------- Sample "prints" (images) placed on the vertical plane ----------
-  function addImage(url, x, y, w=800, h=600, rotDeg=0) {
-    const tex = loader.load(url);
-    const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true });
-    const geo = new THREE.PlaneGeometry(w, h);
-    const mesh = new THREE.Mesh(geo, mat);
-    // For a vertical plane, images must face +Z, so rotation.x = 0
-    mesh.rotation.x = 0;
-    mesh.rotation.y = 0;
-    mesh.rotation.z = THREE.MathUtils.degToRad(rotDeg);
-    mesh.position.set(x, y, 1); // position slightly in front of plane (z=1) to avoid z-fighting
-    world.add(mesh);
-    return mesh;
-  }
+        // Mouse movement
+        document.addEventListener("mousemove", (event) => {
+          if (!isLocked) return;
+          targetVelocity.x = -event.movementX * 0.05;
+          targetVelocity.y = event.movementY * 0.05;
+        });
 
-  // replace these with your own images/positions if you want
-  addImage("https://picsum.photos/seed/a/900/700",   0,    0,   900, 700, -6);
-  addImage("https://picsum.photos/seed/b/800/600",  800, -300, 800, 600, 12);
-  addImage("https://picsum.photos/seed/c/700/500", -900,  500, 700, 500, -12);
-  addImage("https://picsum.photos/seed/d/600/800",  500, 1100, 600, 800, 8);
+        // Right click toggle pointer lock
+        document.addEventListener("contextmenu", (event) => {
+          event.preventDefault();
+          if (!isLocked) {
+            renderer.domElement.requestPointerLock();
+          } else {
+            document.exitPointerLock();
+          }
+        });
 
-  // ---------- Lighting (soft ambient so textures are visible with true color) ----------
-  scene.add(new THREE.AmbientLight(0xffffff, 1));
+        document.addEventListener("pointerlockchange", () => {
+          isLocked = document.pointerLockElement === renderer.domElement;
+        });
 
-  // ---------- Pointer-lock, movement and inertia ----------
-  const hint = document.getElementById('hint');
-  const enterBtn = document.getElementById('enterBtn');
+        // Resize
+        window.addEventListener("resize", () => {
+          camera.aspect = window.innerWidth / window.innerHeight;
+          camera.updateProjectionMatrix();
+          renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+      }
 
-  function requestLock() {
-    if (renderer.domElement.requestPointerLock) renderer.domElement.requestPointerLock();
-  }
+      function animate() {
+        requestAnimationFrame(animate);
 
-  enterBtn.addEventListener('click', requestLock);
-  renderer.domElement.addEventListener('click', () => {
-    // clicking the canvas also requests lock if not locked already
-    if (document.pointerLockElement !== renderer.domElement) requestLock();
-  });
+        // Apply smoother friction
+        velocity.lerp(targetVelocity, 0.2);
+        plane.position.x += velocity.x;
+        plane.position.y += velocity.y;
 
-  // Right-click toggles pointer lock
-  document.addEventListener('contextmenu', (e) => {
-    e.preventDefault();
-    if (document.pointerLockElement === renderer.domElement) {
-      document.exitPointerLock();
-    } else {
-      requestLock();
-    }
-  });
-
-  document.addEventListener('pointerlockchange', () => {
-    const locked = document.pointerLockElement === renderer.domElement;
-    document.body.classList.toggle('locked', locked);
-    hint.classList.toggle('hidden', locked);
-  });
-
-  // Movement state (we move world.position.x / world.position.y)
-  let velX = 0, velY = 0;
-  const SPEED = 1.0;      // multiplier for mouse deltas -> velocity
-  const FRICTION = 0.85;  // stronger friction (more drag) as requested
-
-  // pointer-lock mouse movement (relative)
-  window.addEventListener('mousemove', (e) => {
-    if (document.pointerLockElement === renderer.domElement) {
-      velX += e.movementX * SPEED;
-      velY += -e.movementY * SPEED; // invert so moving mouse down goes down on plane
-    } else {
-      // fallback (no pointer lock): small movement based on distance from center
-      const dx = e.clientX - innerWidth/2;
-      const dy = e.clientY - innerHeight/2;
-      velX += dx * 0.002;
-      velY += -dy * 0.002;
-    }
-  });
-
-  // touch fallback (drag to pan)
-  let lastTouch = null;
-  window.addEventListener('touchstart', (e) => { lastTouch = e.touches[0]; }, { passive: true });
-  window.addEventListener('touchmove', (e) => {
-    const t = e.touches[0];
-    if (lastTouch) {
-      const dx = t.clientX - lastTouch.clientX;
-      const dy = t.clientY - lastTouch.clientY;
-      velX += dx * (SPEED * 0.9);
-      velY += -dy * (SPEED * 0.9);
-    }
-    lastTouch = t;
-  }, { passive: true });
-  window.addEventListener('touchend', () => { lastTouch = null; }, { passive: true });
-
-  // wheel zoom: move camera closer/further on Z
-  window.addEventListener('wheel', (e) => {
-    const sign = Math.sign(e.deltaY);
-    camera.position.z = THREE.MathUtils.clamp(camera.position.z + sign * 80, 400, 6000);
-    camera.lookAt(0, 0, 0);
-  }, { passive: true });
-
-  // ---------- Resize ----------
-  window.addEventListener('resize', () => {
-    camera.aspect = innerWidth/innerHeight;
-    camera.updateProjectionMatrix();
-    renderer.setSize(innerWidth, innerHeight);
-  });
-
-  // ---------- Animation loop ----------
-  function animate() {
-    requestAnimationFrame(animate);
-
-    // move world (note: moving world moves plane + images together)
-    world.position.x += velX;
-    world.position.y += velY;
-
-    // update texture offset so the repeating grid feels continuous
-    gridTex.offset.x = (world.position.x / PLANE_SIZE) % 1;
-    gridTex.offset.y = (world.position.y / PLANE_SIZE) % 1;
-
-    // apply friction
-    velX *= FRICTION;
-    velY *= FRICTION;
-
-    renderer.render(scene, camera);
-  }
-  animate();
-
-  // optional: auto-request pointer lock if user clicks canvas (keeps UX quick)
-  // renderer.domElement.addEventListener('click', requestLock);
-  </script>
-</body>
+        targetVelocity.multiplyScalar(0.85); // friction
+        renderer.render(scene, camera);
+      }
+    </script>
+  </body>
 </html>
